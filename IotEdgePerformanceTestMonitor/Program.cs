@@ -17,10 +17,10 @@ namespace IotEdgePerformanceTestMonitor
     class Program
     {
         // App Insights Telemetry client
-        static TelemetryClient telemetryClient;
+        static TelemetryClient _telemetryClient;
         static Logger _logger;
-        static int rawCounter; // Counter for incoming messages from ASA
-        static int asaCounter; // Counter for incoming raw messages (from leaf devices)
+        static int rawCounter; // Counter for incoming raw messagesv(from leaf devices)
+        static int asaCounter; // Counter for incoming messages from ASA 
 
         static DateTime lastRawBatchReceived;
         static TimeSpan previousLag;
@@ -28,13 +28,11 @@ namespace IotEdgePerformanceTestMonitor
 
         static void Main(string[] args)
         {
-            string appInsightsKey = Environment.GetEnvironmentVariable("ApplicationInsightsApiKey");
             // If Application Insights API key was set in the env, init TelemetryClient
-            if (!string.IsNullOrEmpty(appInsightsKey))
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY")))
             {
-                TelemetryConfiguration.Active.InstrumentationKey = appInsightsKey;
-                telemetryClient = new TelemetryClient();
-                _logger = new Logger(telemetryClient);
+                _telemetryClient = new TelemetryClient();
+                _logger = new Logger(_telemetryClient);
                 _logger.Log("Application Insights TelemetryClient initalized");
             }
             else
@@ -148,8 +146,8 @@ namespace IotEdgePerformanceTestMonitor
                     var eventsSec = Math.Round(_batchsize / batchDuration.TotalSeconds, 1);
                     _logger.Log($"{_batchsize} batch duration: {batchDuration.ToString("c")} ({eventsSec} events/sec)");
 
-                    telemetryClient?.TrackMetric("EventsPerSecond", eventsSec);
-                    telemetryClient?.TrackMetric("BatchDuration", batchDuration.TotalSeconds, new Dictionary<string, string> { { "BatchSize", $"{_batchsize}" } });
+                    _telemetryClient?.TrackMetric("EventsPerSecond", eventsSec);
+                    _telemetryClient?.TrackMetric("BatchDuration", batchDuration.TotalSeconds, new Dictionary<string, string> { { "BatchSize", $"{_batchsize}" } });
 
                     if (message.CreationTimeUtc != DateTime.MinValue)
                     {
@@ -162,7 +160,7 @@ namespace IotEdgePerformanceTestMonitor
                         }
 
                         _logger.Log($"Message from device {message.ConnectionDeviceId} - Created at: {message.CreationTimeUtc.ToString("o")} - Lag: {Math.Round(processLag.TotalSeconds, 2)} sec (increased by {Math.Round(lagDifference.TotalSeconds, 2)} sec)");
-                        telemetryClient?.TrackMetric("ProcessLagSeconds", processLag.TotalSeconds);
+                        _telemetryClient?.TrackMetric("ProcessLagSeconds", processLag.TotalSeconds);
                         previousLag = processLag;
                     }
 
