@@ -8,7 +8,8 @@ namespace IotEdgePerformanceTestMonitor
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
     using System.Threading;
-    using System.Threading.Tasks;
+    using System.Threading.Tasks;  
+    using ByteSizeLib;
     using Microsoft.ApplicationInsights;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.Azure.Devices.Client;
@@ -23,6 +24,7 @@ namespace IotEdgePerformanceTestMonitor
         static int asaCounter; // Counter for incoming messages from ASA 
 
         static DateTime lastRawBatchReceived;
+        static double avgMessageSize;
         static TimeSpan previousLag;
         static int _batchsize = 1000;
 
@@ -40,10 +42,15 @@ namespace IotEdgePerformanceTestMonitor
                 _logger = new Logger();
             }
 
-            _logger.Log("Starting IotEdgePerformanceTestMonitor module");
-
             // The Edge runtime gives us the connection string we need -- it is injected as an environment variable
             string connectionString = Environment.GetEnvironmentVariable("EdgeHubConnectionString");
+
+            // Change default batchsize if specified in env
+            if(int.TryParse(Environment.GetEnvironmentVariable("BatchSize"), out int res)){
+                _batchsize = res > 0 ? res : _batchsize;
+            }
+
+            _logger.Log($"Starting IotEdgePerformanceTestMonitor module. Batchsize {_batchsize}");
 
             // Cert verification is not yet fully functional when using Windows OS for the container
             bool bypassCertVerification = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -142,11 +149,16 @@ namespace IotEdgePerformanceTestMonitor
                 {
                     var now = DateTime.Now;
                     var batchDuration = now - lastRawBatchReceived;
+     
+                    avgMessageSize = avgMessageSize != 0 ? (avgMessageSize + message.GetBytes().Length) / 2 : message.GetBytes().Length;
+                    var byteSize = ByteSize.FromBytes(avgMessageSize * _batchsize);
+                    var kilobytesSec = Math.Round(byteSize.KiloBytes / batchDuration.TotalSeconds, 1);
 
                     var eventsSec = Math.Round(_batchsize / batchDuration.TotalSeconds, 1);
-                    _logger.Log($"{_batchsize} batch duration: {batchDuration.ToString("c")} ({eventsSec} events/sec)");
+                    _logger.Log($"{_batchsize} batch duration: {batchDuration.ToString("c")} ({eventsSec} events/sec) - {kilobytesSec} KB/sec");
 
                     _telemetryClient?.TrackMetric("EventsPerSecond", eventsSec);
+                    _telemetryClient?.TrackMetric("KilobytesPerSecond", kilobytesSec);
                     _telemetryClient?.TrackMetric("BatchDuration", batchDuration.TotalSeconds, new Dictionary<string, string> { { "BatchSize", $"{_batchsize}" } });
 
                     if (message.CreationTimeUtc != DateTime.MinValue)
@@ -163,6 +175,7 @@ namespace IotEdgePerformanceTestMonitor
                         _telemetryClient?.TrackMetric("ProcessLagSeconds", processLag.TotalSeconds);
                         previousLag = processLag;
                     }
+
 
                     lastRawBatchReceived = DateTime.Now;
                     /* 
