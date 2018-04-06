@@ -18,5 +18,6 @@
     <PackageReference Include="System.Runtime.Loader" Version="4.3.0"/>
     <PackageReference Include="Microsoft.ApplicationInsights" Version="2.5.1"/>
     <PackageReference Include="ByteSize" Version="1.3.0"/>
+    <PackageReference Include="Microsoft.Azure.IoT.Edge.Module" Version="1.3.1"/>
   </ItemGroup>
 </Project>
