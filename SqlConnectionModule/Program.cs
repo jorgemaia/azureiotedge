@@ -1,4 +1,4 @@
-namespace IotEdgePerformanceTestMonitor
+namespace SqlConnectionModule
 {
     using System;
     using System.Collections.Generic;
@@ -8,8 +8,9 @@ namespace IotEdgePerformanceTestMonitor
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
     using System.Threading;
-    using System.Threading.Tasks;  
-    using ByteSizeLib;
+    using System.Threading.Tasks;
+    using Sql = System.Data.SqlClient;
+    using Newtonsoft.Json;
     using Microsoft.ApplicationInsights;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.Azure.Devices.Client;
@@ -20,16 +21,14 @@ namespace IotEdgePerformanceTestMonitor
         // App Insights Telemetry client
         static TelemetryClient _telemetryClient;
         static Logger _logger;
-        static int rawCounter; // Counter for incoming raw messagesv(from leaf devices)
-        static int asaCounter; // Counter for incoming messages from ASA 
 
-        static DateTime lastRawBatchReceived;
-        static double avgMessageSize;
-        static TimeSpan previousLag;
-        static int _batchsize = 1000;
+        static int counterRawMessages;
+        static int counterAsaMessages;
+        private static string _sqlConnString;
 
         static void Main(string[] args)
         {
+
             // If Application Insights API key was set in the env, init TelemetryClient
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY")))
             {
@@ -45,12 +44,8 @@ namespace IotEdgePerformanceTestMonitor
             // The Edge runtime gives us the connection string we need -- it is injected as an environment variable
             string connectionString = Environment.GetEnvironmentVariable("EdgeHubConnectionString");
 
-            // Change default batchsize if specified in env
-            if(int.TryParse(Environment.GetEnvironmentVariable("BatchSize"), out int res)){
-                _batchsize = res > 0 ? res : _batchsize;
-            }
-
-            _logger.Log($"Starting IotEdgePerformanceTestMonitor module. Batchsize {_batchsize}");
+            // Read SQL Connection string from env
+            _sqlConnString = Environment.GetEnvironmentVariable("SQLConnectionString");
 
             // Cert verification is not yet fully functional when using Windows OS for the container
             bool bypassCertVerification = true; // RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -128,71 +123,43 @@ namespace IotEdgePerformanceTestMonitor
             await ioTHubModuleClient.SetInputMessageHandlerAsync("inputAsa", ProcessInputAsa, ioTHubModuleClient);
         }
 
-#pragma warning disable 1998
         /// <summary>
         /// This method is called whenever the module is sent a message from the EdgeHub. 
+        /// It just pipe the messages without any change.
+        /// It prints all the incoming messages.
         /// </summary>
         static async Task<MessageResponse> ProcessInputRaw(Message message, object userContext)
         {
-            int counterRawMessages = Interlocked.Increment(ref rawCounter);
+            int counterValue = Interlocked.Increment(ref counterRawMessages);
 
-            // We only print the first message and every 1000th message (or whatever the batchsize is set to)
-            if (counterRawMessages == 1 || counterRawMessages % _batchsize == 0)
+            byte[] messageBytes = message.GetBytes();
+            string messageString = Encoding.UTF8.GetString(messageBytes);
+            _logger.Log($"Received raw message: {counterValue}");
+
+            if (!string.IsNullOrEmpty(messageString))
             {
-                _logger.Log($"Raw messages recevied: {counterRawMessages}");
+                var eventList = JsonConvert.DeserializeObject<List<MessageBodyRawInput>>(messageString);
 
-                if (lastRawBatchReceived == DateTime.MinValue)
+                string insertRowStatement = "";
+                foreach (MessageBodyRawInput item in eventList)
                 {
-                    lastRawBatchReceived = DateTime.Now;
+                    insertRowStatement += $"INSERT INTO MeasurementsDB.dbo.TemperatureHumidity VALUES (CONVERT(DATETIME2,'{item.deviceTime}', 127), '{item.deviceId}', {item.temperatur}, {item.humidity});\n";
                 }
-                else
+
+                //Store the data in SQL db
+                using (Sql.SqlConnection conn = new Sql.SqlConnection(_sqlConnString))
                 {
-                    var now = DateTime.Now;
-                    var batchDuration = now - lastRawBatchReceived;
-     
-                    avgMessageSize = avgMessageSize != 0 ? (avgMessageSize + message.GetBytes().Length) / 2 : message.GetBytes().Length;
-                    var byteSize = ByteSize.FromBytes(avgMessageSize * _batchsize);
-                    var kilobytesSec = Math.Round(byteSize.KiloBytes / batchDuration.TotalSeconds, 1);
-
-                    var eventsSec = Math.Round(_batchsize / batchDuration.TotalSeconds, 1);
-                    _logger.Log($"{_batchsize} batch duration: {batchDuration.ToString("c")} ({eventsSec} events/sec) - {kilobytesSec} KB/sec");
-
-                    _telemetryClient?.TrackMetric("EventsPerSecond", eventsSec);
-                    _telemetryClient?.TrackMetric("KilobytesPerSecond", kilobytesSec);
-                    _telemetryClient?.TrackMetric("BatchDuration", batchDuration.TotalSeconds, new Dictionary<string, string> { { "BatchSize", $"{_batchsize}" } });
-
-                    if (message.CreationTimeUtc != DateTime.MinValue)
+                    conn.Open();
+                    using (Sql.SqlCommand cmd = new Sql.SqlCommand(insertRowStatement, conn))
                     {
-                        var processLag = now - message.CreationTimeUtc;
-                        TimeSpan lagDifference;
-
-                        if (previousLag != TimeSpan.MinValue)
-                        {
-                            lagDifference = processLag - previousLag;
-                        }
-
-                        _logger.Log($"Message from device {message.ConnectionDeviceId} - Created at: {message.CreationTimeUtc.ToString("o")} - Lag: {Math.Round(processLag.TotalSeconds, 2)} sec (increased by {Math.Round(lagDifference.TotalSeconds, 2)} sec)");
-                        _telemetryClient?.TrackMetric("ProcessLagSeconds", processLag.TotalSeconds);
-                        previousLag = processLag;
+                        //Execute the command and log the # rows affected.
+                        var rows = await cmd.ExecuteNonQueryAsync();
+                        _logger.Log($"{rows} rows were inserted into dbo.TemperatureHumidity");
                     }
-
-
-                    lastRawBatchReceived = DateTime.Now;
-                    /* 
-                    var messageBytes = message.GetBytes();
-                    var messageString = Encoding.UTF8.GetString(messageBytes);
-                    _logger.Log($"RawInputMessageString: {messageString}");
-
-                    foreach (var prop in message.Properties)
-                    {
-                        _logger.Log($"Raw Message property: {prop.Key} - {prop.Value}");
-                    }
-                    */
                 }
             }
             return MessageResponse.Completed;
         }
-
         /// <summary>
         /// This method is called whenever the module is sent a message from the EdgeHub. 
         /// It just pipe the messages without any change.
@@ -200,24 +167,51 @@ namespace IotEdgePerformanceTestMonitor
         /// </summary>
         static async Task<MessageResponse> ProcessInputAsa(Message message, object userContext)
         {
-            int counterAsaMessages = Interlocked.Increment(ref asaCounter);
+            int counterValue = Interlocked.Increment(ref counterAsaMessages);
 
-            _logger.Log($"ASA messages recevied: {counterAsaMessages}");
+            byte[] messageBytes = message.GetBytes();
+            string messageString = Encoding.UTF8.GetString(messageBytes);
+            _logger.Log($"Received ASA message: {counterValue}");
 
-            var messageBytes = message.GetBytes();
-            var messageString = Encoding.UTF8.GetString(messageBytes);
-            _logger.Log($"AsaInputMessageString: {messageString}");
-
-            /* 
-            // ASA properties: "source=ASA", "OutputName=edgehubout", "$.on=edgehubout"
-            foreach (var prop in message.Properties)
+            if (!string.IsNullOrEmpty(messageString))
             {
-                _logger.Log($"ASA Message property: {prop.Key} - {prop.Value}");
-            }
-            */
+                var eventList = JsonConvert.DeserializeObject<List<MessageBodyAsaInput>>(messageString);
 
+                string insertRowStatement = "";
+                foreach (MessageBodyAsaInput item in eventList)
+                {
+                    insertRowStatement += $"INSERT INTO MeasurementsDB.dbo.AggreatedMeasurements (deviceId, timestamp, avgHumidity, avgTemperature) VALUES ({item.deviceId}', CONVERT(DATETIME2,'{item.WindowEndTime}', 127), {item.avgHumidity}, {item.avgTemperature});\n";
+                }
+
+                //Store the data in SQL db
+                using (Sql.SqlConnection conn = new Sql.SqlConnection(_sqlConnString))
+                {
+                    conn.Open();
+                    using (Sql.SqlCommand cmd = new Sql.SqlCommand(insertRowStatement, conn))
+                    {
+                        //Execute the command and log the # rows affected.
+                        var rows = await cmd.ExecuteNonQueryAsync();
+                        _logger.Log($"{rows} rows were inserted");
+                    }
+                }
+            }
             return MessageResponse.Completed;
         }
-#pragma warning restore 1998
+    }
+
+    class MessageBodyRawInput
+    {
+        public string deviceId { get; set; }
+        public string eventId { get; set; }
+        public string temperatur { get; set; }
+        public string humidity { get; set; }
+        public string deviceTime { get; set; }
+    }
+    class MessageBodyAsaInput
+    {
+        public string deviceId { get; set; }
+        public string WindowEndTime { get; set; }
+        public string avgTemperature { get; set; }
+        public string avgHumidity { get; set; }
     }
 }
