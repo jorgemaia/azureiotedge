@@ -43,6 +43,11 @@ namespace Functions.Samples
             }
         }
 
+        /// <summary>
+        /// Init EventHub client based on env variables
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <returns></returns>
         private static EventHubClient InitEventHubClient(ILogger logger)
         {
             var eventHubConnectionString = Environment.GetEnvironmentVariable("EventHubConnectionString");

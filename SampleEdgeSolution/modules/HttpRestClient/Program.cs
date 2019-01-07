@@ -34,8 +34,8 @@ namespace HttpRestClient
             var moduleClient = await Init();
 
             // Register direct method handlers
-            await moduleClient.SetMethodHandlerAsync("ExecuteGet", ExecuteGet, null);
-            await moduleClient.SetMethodHandlerAsync("ExecutePost", ExecutePost, null);
+            await moduleClient.SetMethodHandlerAsync("ExecuteGet", ExecuteGet, moduleClient);
+            await moduleClient.SetMethodHandlerAsync("ExecutePost", ExecutePost, moduleClient);
 
             // Wait until the app unloads or is cancelled
             var cts = new CancellationTokenSource();
@@ -83,14 +83,14 @@ namespace HttpRestClient
             }
 
             // Open a connection to the Edge runtime
-            ModuleClient ioTHubModuleClient = await ModuleClient.CreateFromEnvironmentAsync(transportType);
-            await ioTHubModuleClient.OpenAsync();
+            ModuleClient moduleClient = await ModuleClient.CreateFromEnvironmentAsync(transportType);
+            await moduleClient.OpenAsync();
 
-            ioTHubModuleClient.SetConnectionStatusChangesHandler(ConnectionStatusHandler);
+            moduleClient.SetConnectionStatusChangesHandler(ConnectionStatusHandler);
 
-            Log.Information($"IoT Hub module client initialized using {transportType}");
+            Log.Information($"Edge Hub module client initialized using {transportType}");
 
-            return ioTHubModuleClient;
+            return moduleClient;
         }
 
         private static void ConnectionStatusHandler(ConnectionStatus status, ConnectionStatusChangeReason reason)

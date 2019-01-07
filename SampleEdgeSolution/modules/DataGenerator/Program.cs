@@ -95,14 +95,14 @@ namespace DataGenerator
             }
 
             // Open a connection to the Edge runtime
-            ModuleClient ioTHubModuleClient = await ModuleClient.CreateFromEnvironmentAsync(transportType);
-            await ioTHubModuleClient.OpenAsync();
+            ModuleClient moduleClient = await ModuleClient.CreateFromEnvironmentAsync(transportType);
+            await moduleClient.OpenAsync();
 
-            ioTHubModuleClient.SetConnectionStatusChangesHandler(ConnectionStatusHandler);
+            moduleClient.SetConnectionStatusChangesHandler(ConnectionStatusHandler);
 
-            Log.Information($"IoT Hub module client initialized using {transportType}");
+            Log.Information($"Edge Hub module client initialized using {transportType}");
 
-            return ioTHubModuleClient;
+            return moduleClient;
         }
 
         private static void ConnectionStatusHandler(ConnectionStatus status, ConnectionStatusChangeReason reason)
@@ -230,20 +230,21 @@ namespace DataGenerator
             }
         }
 
-        private static double LastTemperatur { get; set; }
+        private static double LastTemperature { get; set; }
 
         /// <summary>
-        /// Calling _CurrentTemperatur will trigger a recalculation of the sensor reading
+        /// Calling GetNewTemperature will trigger a recalculation of the sensor reading and write the new value to LastTemperature
         /// </summary>
         private static double GetNewTemperature()
         {
 
-            double currentTemperature = LastTemperatur;
+            double currentTemperature = LastTemperature;
 
             // We built a random device failure / anomaly in here. In ~0.2% of all readings, 
             // the temperature reading drops or increases in an instant by +/-20°
             if (_rand.Next(0, 500) == 0)
             {
+                Log.Information("Random event: Major temperature shift +/- 20 degrees C");
                 // Randomly add or subtract 20 degrees to the temperatur
                 currentTemperature += _rand.Next(2) == 0 ? 20 : -20;
             }
@@ -259,25 +260,26 @@ namespace DataGenerator
             else if (currentTemperature > 45)
                 currentTemperature = 45;
 
-            LastTemperatur = currentTemperature;
+            LastTemperature = currentTemperature;
             return currentTemperature;
-
         }
 
         private static int LastHumidity { get; set; }
 
+        /// <summary>
+        /// Calling GetNewHumidity will trigger a recalculation of the sensor reading and write the new value to LastHumidity
+        /// </summary>
         private static int GetNewHumidity()
         {
-
             int lastHumidity = LastHumidity;
 
             // We built a loose correlation between Temperatur and Humidity:
             // Colder temp = higher Humidity. Does it make sense? Who knows...
-            if (LastTemperatur < 5 && lastHumidity < 70)
+            if (LastTemperature < 5 && lastHumidity < 70)
                 lastHumidity = 80;
-            else if (LastTemperatur >= 5 && LastTemperatur < 25 && lastHumidity < 50)
+            else if (LastTemperature >= 5 && LastTemperature < 25 && lastHumidity < 50)
                 lastHumidity = 60;
-            else if (LastTemperatur >= 25 && lastHumidity > 40)
+            else if (LastTemperature >= 25 && lastHumidity > 40)
                 lastHumidity = 30;
 
             int humidity = lastHumidity + _rand.Next(-10, +11);
