@@ -2,9 +2,9 @@
     "$schema-version": "0.0.1",
     "description": "",
     "image": {
-        "repository": "iguaziotest.azurecr.io/taggingmodule",
+        "repository": "sebader/iot-edge-httprestclient",
         "tag": {
-            "version": "0.0.4",
+            "version": "0.0.1",
             "platforms": {
                 "amd64": "./Dockerfile.amd64", 
                 "amd64.debug": "./Dockerfile.amd64.debug",
@@ -12,7 +12,8 @@
                 "windows-amd64": "./Dockerfile.windows-amd64"
             }
         },
-        "buildOptions": []
+        "buildOptions": [],
+        "contextPath": "./"
     },
     "language": "csharp"
 }

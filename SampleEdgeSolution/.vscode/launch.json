@@ -1,0 +1,104 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "DataGenerator Remote Debug (.NET Core)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickRemoteProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": [
+          "exec",
+          "-i",
+          "DataGenerator",
+          "sh",
+          "-c"
+        ],
+        "debuggerPath": "~/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}",
+        "quoteArgs": true
+      },
+      "sourceFileMap": {
+        "/app": "${workspaceFolder}/modules/DataGenerator"
+      },
+      "justMyCode": true
+    },
+    {
+      "name": "DataGenerator Local Debug (.NET Core)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceRoot}/modules/DataGenerator/bin/Debug/netcoreapp2.1/DataGenerator.dll",
+      "args": [],
+      "cwd": "${workspaceRoot}/modules/DataGenerator",
+      "internalConsoleOptions": "openOnSessionStart",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "EdgeHubConnectionString": "${config:azure-iot-edge.EdgeHubConnectionString}",
+        "EdgeModuleCACertificateFile": "${config:azure-iot-edge.EdgeModuleCACertificateFile}"
+      }
+    },
+    {
+      "name": "HttpRestClient Remote Debug (.NET Core)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickRemoteProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": [
+          "exec",
+          "-i",
+          "HttpRestClient",
+          "sh",
+          "-c"
+        ],
+        "debuggerPath": "~/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}",
+        "quoteArgs": true
+      },
+      "sourceFileMap": {
+        "/app": "${workspaceFolder}/modules/HttpRestClient"
+      },
+      "justMyCode": true
+    },
+    {
+      "name": "HttpRestClient Local Debug (.NET Core)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceRoot}/modules/HttpRestClient/bin/Debug/netcoreapp2.1/HttpRestClient.dll",
+      "args": [],
+      "cwd": "${workspaceRoot}/modules/HttpRestClient",
+      "internalConsoleOptions": "openOnSessionStart",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "EdgeHubConnectionString": "${config:azure-iot-edge.EdgeHubConnectionString}",
+        "EdgeModuleCACertificateFile": "${config:azure-iot-edge.EdgeModuleCACertificateFile}"
+      }
+    },
+    {
+      "name": "EventHubForwarderFunction Remote Debug (.NET Core)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickRemoteProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": [
+          "exec",
+          "-i",
+          "EventHubForwarderFunction",
+          "sh",
+          "-c"
+        ],
+        "debuggerPath": "~/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}",
+        "quoteArgs": true
+      },
+      "sourceFileMap": {
+        "/app": "${workspaceFolder}/modules/EventHubForwarderFunction"
+      },
+      "justMyCode": true
+    }
+  ]
+}
