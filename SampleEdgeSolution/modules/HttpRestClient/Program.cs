@@ -65,12 +65,12 @@ namespace HttpRestClient
         static async Task<ModuleClient> Init()
         {
             var transportType = TransportType.Mqtt_Tcp_Only;
-            string upstreamProtocol = Environment.GetEnvironmentVariable("UpstreamProtocol");
+            string transportProtocol = Environment.GetEnvironmentVariable("TransportProtocol");
 
             // The way the module connects to the EdgeHub can be controlled via the env variable. Either MQTT or AMQP
-            if (!string.IsNullOrEmpty(upstreamProtocol))
+            if (!string.IsNullOrEmpty(transportProtocol))
             {
-                switch (upstreamProtocol.ToUpper())
+                switch (transportProtocol.ToUpper())
                 {
                     case "AMQP":
                         transportType = TransportType.Amqp_Tcp_Only;
@@ -80,7 +80,7 @@ namespace HttpRestClient
                         break;
                     default:
                         // Anything else: use default of MQTT
-                        Log.Warning($"Ignoring unknown UpstreamProtocol={upstreamProtocol}. Using default={transportType}");
+                        Log.Warning($"Ignoring unknown TransportProtocol={transportProtocol}. Using default={transportType}");
                         break;
                 }
             }
@@ -203,6 +203,9 @@ namespace HttpRestClient
                     Log.Information($"HTTP operation successfully completed StatusCode={response.StatusCode}.");
 
                     result.ClientResponse = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                    Log.Debug($"Endpoint response:");
+                    Log.Debug(result.ClientResponse);
                 }
             }
             catch (HttpRequestException hre)
