@@ -17,25 +17,28 @@ namespace HttpRestClient
 
     /// <summary>
     /// Sample Azure IoT Edge module that implements sample Direct Method callbacks.
-    /// This module can execute HTTP REST call against arbirary endpoints, e.g.!-- when running inside a firewalled network on-prem
+    /// This module can execute HTTP REST call against arbirary endpoints, e.g. when running inside a firewalled network on-prem
     /// The result of the REST call is being returned to the caller of the direct method
     /// For now this supports GET and POST requests
     /// </summary>
     class Program
     {
-        private static HttpClient _httpClient = new HttpClient();
+        private const int DefaultTimeoutSeconds = 30;
+        private static HttpClient _httpClient = new HttpClient() { Timeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds) };
 
         public static int Main() => MainAsync().Result;
 
         static async Task<int> MainAsync()
         {
             InitLogging();
-            Log.Information("Module starting up...");
+            Log.Information($"Module {Environment.GetEnvironmentVariable("IOTEDGE_MODULEID")} starting up...");
             var moduleClient = await Init();
 
             // Register direct method handlers
             await moduleClient.SetMethodHandlerAsync("ExecuteGet", ExecuteGet, moduleClient);
             await moduleClient.SetMethodHandlerAsync("ExecutePost", ExecutePost, moduleClient);
+
+            await moduleClient.SetMethodDefaultHandlerAsync(DefaultMethodHandler, moduleClient);
 
             // Wait until the app unloads or is cancelled
             var cts = new CancellationTokenSource();
@@ -93,9 +96,37 @@ namespace HttpRestClient
             return moduleClient;
         }
 
+        /// <summary>
+        /// Callback for whenever the connection status changes
+        /// Mostly we just log the new status and the reason. 
+        /// But for some disconnects we need to handle them here differently for our module to recover
+        /// </summary>
+        /// <param name="status"></param>
+        /// <param name="reason"></param>
         private static void ConnectionStatusHandler(ConnectionStatus status, ConnectionStatusChangeReason reason)
         {
             Log.Information($"Module connection changed. New status={status.ToString()} Reason={reason.ToString()}");
+
+            // Sometimes the connection can not be recovered if it is in either of those states.
+            // To solve this, we exit the module. The Edge Agent will then restart it (retrying with backoff)
+            if (reason == ConnectionStatusChangeReason.Retry_Expired)
+            {
+                Log.Error($"Connection can not be re-established. Exiting module");
+                Environment.Exit(1);
+            }
+        }
+
+        /// <summary>
+        /// Default method handler for any method calls which are not implemented
+        /// </summary>
+        /// <param name="methodRequest"></param>
+        /// <param name="userContext"></param>
+        /// <returns></returns>
+        private async static Task<MethodResponse> DefaultMethodHandler(MethodRequest methodRequest, object userContext)
+        {
+            var result = new RestMethodResponsePayload() { Error = $"Method {methodRequest.Name} not implemented" };
+            var outResult = JsonConvert.SerializeObject(result, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+            return new MethodResponse(Encoding.UTF8.GetBytes(outResult), 404);
         }
 
         /// <summary>
@@ -150,7 +181,6 @@ namespace HttpRestClient
                 else
                 {
                     result.ClientUrl = request.Url;
-
                     Log.Information($"Executing HTTP {httpMethod} method against endpoint {request.Url} with timeout of {_httpClient.Timeout}");
 
                     HttpResponseMessage response;
@@ -240,7 +270,6 @@ namespace HttpRestClient
     {
         public string Url { get; set; }
         public string RequestPayload { get; set; }
-        public int TimeOutSeconds { get; set; } = 5;
     }
 
     /// <summary>

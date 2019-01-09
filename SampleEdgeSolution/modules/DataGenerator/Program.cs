@@ -35,7 +35,7 @@ namespace DataGenerator
         static async Task<int> MainAsync()
         {
             InitLogging();
-            Log.Information("Module starting up...");
+            Log.Information($"Module {Environment.GetEnvironmentVariable("IOTEDGE_MODULEID")} starting up...");
             var moduleClient = await Init();
 
             // Get initial device twin
@@ -105,9 +105,24 @@ namespace DataGenerator
             return moduleClient;
         }
 
+        /// <summary>
+        /// Callback for whenever the connection status changes
+        /// Mostly we just log the new status and the reason. 
+        /// But for some disconnects we need to handle them here differently for our module to recover
+        /// </summary>
+        /// <param name="status"></param>
+        /// <param name="reason"></param>
         private static void ConnectionStatusHandler(ConnectionStatus status, ConnectionStatusChangeReason reason)
         {
             Log.Information($"Module connection changed. New status={status.ToString()} Reason={reason.ToString()}");
+
+            // Sometimes the connection can not be recovered if it is in either of those states.
+            // To solve this, we exit the module. The Edge Agent will then restart it (retrying with backoff)
+            if (reason == ConnectionStatusChangeReason.Retry_Expired)
+            {
+                Log.Error($"Connection can not be re-established. Exiting module");
+                Environment.Exit(1);
+            }
         }
 
         /// <summary>
