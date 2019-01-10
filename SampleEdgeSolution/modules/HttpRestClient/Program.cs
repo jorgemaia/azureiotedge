@@ -124,6 +124,7 @@ namespace HttpRestClient
         /// <returns></returns>
         private async static Task<MethodResponse> DefaultMethodHandler(MethodRequest methodRequest, object userContext)
         {
+            Log.Information($"Received method invocation for non-existing method {methodRequest.Name}. Returning 404.");
             var result = new RestMethodResponsePayload() { Error = $"Method {methodRequest.Name} not implemented" };
             var outResult = JsonConvert.SerializeObject(result, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
             return new MethodResponse(Encoding.UTF8.GetBytes(outResult), 404);

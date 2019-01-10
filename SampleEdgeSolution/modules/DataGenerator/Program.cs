@@ -30,6 +30,8 @@ namespace DataGenerator
 
         private static int _samplingRateMs = 1000;
 
+        private static TwinCollection _reportedProperties = new TwinCollection();
+
         public static int Main() => MainAsync().Result;
 
         static async Task<int> MainAsync()
@@ -187,8 +189,6 @@ namespace DataGenerator
         /// <returns></returns>
         private static async Task ProcessDesiredPropertiesUpdate(TwinCollection desiredProperties, ModuleClient moduleClient)
         {
-            var reportedProperties = new TwinCollection();
-
             if (desiredProperties.Contains("samplingrate") &&
                 desiredProperties["samplingrate"].Type == JTokenType.Integer)
             {
@@ -201,10 +201,10 @@ namespace DataGenerator
                 }
             }
 
-            reportedProperties["samplingrate"] = _samplingRateMs;
+            _reportedProperties["samplingrate"] = _samplingRateMs;
 
             // Report properties back to IoT hub
-            await moduleClient.UpdateReportedPropertiesAsync(reportedProperties);
+            await moduleClient.UpdateReportedPropertiesAsync(_reportedProperties);
         }
 
         /// <summary>
