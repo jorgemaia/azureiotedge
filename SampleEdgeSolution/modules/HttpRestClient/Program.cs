@@ -1,17 +1,12 @@
 namespace HttpRestClient
 {
     using System;
-    using System.IO;
     using System.Net.Http;
-    using System.Runtime.InteropServices;
     using System.Runtime.Loader;
-    using System.Security.Cryptography.X509Certificates;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Azure.Devices.Client;
-    using Microsoft.Azure.Devices.Client.Transport.Mqtt;
-    using Microsoft.Extensions.Logging;
     using Newtonsoft.Json;
     using Serilog;
 
@@ -122,12 +117,12 @@ namespace HttpRestClient
         /// <param name="methodRequest"></param>
         /// <param name="userContext"></param>
         /// <returns></returns>
-        private async static Task<MethodResponse> DefaultMethodHandler(MethodRequest methodRequest, object userContext)
+        private static Task<MethodResponse> DefaultMethodHandler(MethodRequest methodRequest, object userContext)
         {
             Log.Information($"Received method invocation for non-existing method {methodRequest.Name}. Returning 404.");
             var result = new RestMethodResponsePayload() { Error = $"Method {methodRequest.Name} not implemented" };
             var outResult = JsonConvert.SerializeObject(result, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            return new MethodResponse(Encoding.UTF8.GetBytes(outResult), 404);
+            return Task.FromResult(new MethodResponse(Encoding.UTF8.GetBytes(outResult), 404));
         }
 
         /// <summary>
