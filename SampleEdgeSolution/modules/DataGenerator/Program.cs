@@ -70,8 +70,8 @@ namespace DataGenerator
         /// </summary>
         static async Task<ModuleClient> Init()
         {
-            var transportType = TransportType.Mqtt_Tcp_Only;
-            string transportProtocol = Environment.GetEnvironmentVariable("TransportProtocol");
+            var transportType = TransportType.Amqp_Tcp_Only;
+            string transportProtocol = Environment.GetEnvironmentVariable("ClientTransportType");
 
             // The way the module connects to the EdgeHub can be controlled via the env variable. Either MQTT or AMQP
             if (!string.IsNullOrEmpty(transportProtocol))
@@ -85,7 +85,7 @@ namespace DataGenerator
                         transportType = TransportType.Mqtt_Tcp_Only;
                         break;
                     default:
-                        // Anything else: use default of MQTT
+                        // Anything else: use default
                         Log.Warning($"Ignoring unknown TransportProtocol={transportProtocol}. Using default={transportType}");
                         break;
                 }
@@ -93,10 +93,9 @@ namespace DataGenerator
 
             // Open a connection to the Edge runtime
             ModuleClient moduleClient = await ModuleClient.CreateFromEnvironmentAsync(transportType);
-            await moduleClient.OpenAsync();
-
             moduleClient.SetConnectionStatusChangesHandler(ConnectionStatusHandler);
 
+            await moduleClient.OpenAsync();
             Log.Information($"Edge Hub module client initialized using {transportType}");
 
             return moduleClient;

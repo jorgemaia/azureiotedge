@@ -15,4 +15,4 @@ Builds of the modules for Linux, ARM und Windows are pushed to my docker repo, f
   - Function that receives input from the Edge Hub and sends the data to an external Azure Event Hub
 
 ## Notes
-Where applicable, the transport protocol, i.e. via which protocol a module connects to the Edge Hub, can be controlled via the environment variable "TransportProtocol". This accepts either AMQP or MQTT. Currently my modules default to AMQP but both should be feature-equivalent.
+Where applicable, the transport protocol, i.e. via which protocol a module connects to the Edge Hub, can be controlled via the environment variable "ClientTransportType". This accepts either AMQP or MQTT. Currently my modules default to AMQP but both should be feature-equivalent.
